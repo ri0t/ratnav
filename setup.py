@@ -44,22 +44,22 @@ def find_packages(path, base=""):
 packages = find_packages(".")
 package_names = packages.keys()
 
-setup(name="trafficam",
+setup(name="ratnav",
       version="1.0.0",
-      description="trafficam",
+      description="ratnav",
 
       author="Hackerfleet Community",
       author_email="packages@hackerfleet.org",
-      url="https://github.com/ri0t/trafficam",
+      url="https://github.com/ri0t/ratnav",
       license="GNU General Public License v3",
       packages=package_names,
       package_dir=packages,
       scripts=[
-          'scripts/trafficam',
+          'scripts/ratnav',
       ],
       data_files=[
-          ('/etc/init.d', ["etc/init.d/trafficam"]),
-          ('/etc/trafficam', ["etc/trafficam/config.json"])
+          ('/etc/init.d', ["etc/init.d/ratnav"]),
+          ('/etc/ratnav', ["etc/ratnav/config.json"])
       ],
 
       long_description=include_readme(),

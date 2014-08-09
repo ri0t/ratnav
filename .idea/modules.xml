@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/ratnav.iml" filepath="$PROJECT_DIR$/.idea/ratnav.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/trafficam.iml" filepath="$PROJECT_DIR$/.idea/trafficam.iml" />
     </modules>
   </component>
