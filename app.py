@@ -23,6 +23,24 @@ import time
 
 import cv2.cv as cv
 
+# This source derived from https://github.com/RobinDavid/Motion-detection-OpenCV.git
+
+# TODO:
+# * detect own movement
+# * try to use both detection methods
+# * integrate accelerometer
+# * add configurable preprocessing
+# * add state information (so no spamming happens)
+# * add license plate detection tool
+# * ...
+
+# Done:
+# * Add gplv3
+# * mention original source
+# * add inner movement detection
+# * combine delta and contour detection methods in app
+# * scrap recorder
+# * cleanups
 
 def log(*what):
     """Simple unfancy logging"""
