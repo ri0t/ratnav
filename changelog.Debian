@@ -1,0 +1,14 @@
+python-ratnav (0.0.1) unstable; urgency=low
+
+    * state information (so no spamming happens)
+    * detecting own movement
+    * correctly (hopefully ;) configured application logic
+    * added README.rst
+    * added gplv3
+    * mentions original source
+    * added inner movement detection
+    * combined delta and contour detection methods in app
+    * scrapped recorder
+    * cleanups
+
+ -- Heiko 'riot' Weinen <riot@hackerfleet.org> Sun, 10 Aug 2014 13:19:00 +0200

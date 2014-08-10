@@ -20,27 +20,36 @@
 
 
 import time
+import pygame
 
 import cv2.cv as cv
+
 
 # This source derived from https://github.com/RobinDavid/Motion-detection-OpenCV.git
 
 # TODO:
-# * detect own movement
+# * Open issue tracker and move todo items
 # * try to use both detection methods
 # * integrate accelerometer
 # * add configurable preprocessing
-# * add state information (so no spamming happens)
 # * add license plate detection tool
-# * ...
 
 # Done:
+# * add state information (so no spamming happens)
+# * detect own movement
+# * Correctly configure application logic
+# * Add README.rst
 # * Add gplv3
 # * mention original source
 # * add inner movement detection
 # * combine delta and contour detection methods in app
 # * scrap recorder
 # * cleanups
+
+MOVE = './audio/move.wav'
+MOVING = './audio/moving.wav'
+STANDING = './audio/standing.wav'
+
 
 def log(*what):
     """Simple unfancy logging"""
@@ -60,14 +69,14 @@ class RatNavApp():
 
         self.threshold = val
 
-    def __init__(self, threshold=25, showWindows=True):
+    def __init__(self, threshold=25, show_windows=True, do_audio=True):
         self.font = None
         self.mode = 'contours'
-        self.show = showWindows   # Either or not show the 2 windows
+        self.show = show_windows  # Either or not show the 2 windows
         self.frame = None
 
         self.capture = cv.CaptureFromCAM(0)
-        self.frame = cv.QueryFrame(self.capture)   # Take a frame to init recorder
+        self.frame = cv.QueryFrame(self.capture)  # Take a frame to init recorder
 
         self.gray_frame = cv.CreateImage(cv.GetSize(self.frame), cv.IPL_DEPTH_8U, 1)
         self.average_frame = cv.CreateImage(cv.GetSize(self.frame), cv.IPL_DEPTH_32F, 3)
@@ -86,7 +95,7 @@ class RatNavApp():
         self.height = self.frame.height
         self.nb_pixels = self.width * self.height
 
-        self.inner = (self.width/4, self.height/4, (self.width/2), (self.height/2))
+        self.inner = (self.width / 4, self.height / 4, (self.width / 2), (self.height / 2))
         log("Input format: ", self.width, 'x', self.height)
         log("Scanning for car movement in: ", self.inner)
 
@@ -94,9 +103,23 @@ class RatNavApp():
         self.currentsurface = 0
         self.currentcontours = None
         self.threshold = threshold
-        self.trigger_time = 0   # Hold timestamp of the last detection
+        #self.trigger_time = 0   # Hold timestamp of the last detection
+        self.move_time = 0
+        self.alert_time = 0
 
-        if showWindows:
+        self.standing = True
+        self.moving = False
+
+        self.do_audio = do_audio
+
+        if do_audio:
+            pygame.init()
+
+            self.s_moving = pygame.mixer.Sound(MOVING)
+            self.s_move = pygame.mixer.Sound(MOVE)
+            self.s_standing = pygame.mixer.Sound(STANDING)
+
+        if show_windows:
             cv.NamedWindow("Image")
             cv.CreateTrackbar("Detection treshold: ", "Image", self.threshold, 100, self.onChange)
 
@@ -111,22 +134,37 @@ class RatNavApp():
         while True:
 
             currentframe = cv.QueryFrame(self.capture)
-            instant = time.time()   # Get timestamp o the frame
+            instant = time.time()  # Get timestamp o the frame
 
-            self.process_image(currentframe)   # Process the image
+            self.process_image(currentframe)  # Process the image
 
             if self.somethingHasMoved():
-                self.trigger_time = instant   # Update the trigger_time
-                if instant > started + 10:   # Wait 5 second after the webcam start for luminosity adjusting etc..
-                    log("Something is moving!")
+                if self.standing:
+                    log("We're moving.")
+                    self.standing = False
+                    self.move_time = instant  # Update the trigger_time
+                if not self.moving and instant > self.move_time + 3:
+                    self.alert(self.s_moving)
+                    self.moving = True
+
+                    #if instant > started + 10:   # Wait 5 second after the webcam start for luminosity adjusting etc..
+            else:
+                if self.moving:
+                    log("We're standing.")
+                    self.alert(self.s_standing)
+                    self.moving = False
+                self.standing = True
+                if self.find_movement_in_rect(self.currentcontours, self.inner):
+                    self.alert(self.s_move)
+
             if self.mode == 'contours':
                 cv.DrawContours(currentframe, self.currentcontours, (0, 0, 255), (0, 255, 0), 1, 2, cv.CV_FILLED)
-        
+
             if self.show:
                 cv.ShowImage("Image", currentframe)
 
             c = cv.WaitKey(1) % 0x100
-            if c == 27 or c == 10:   # Break if user enters 'Esc'.
+            if c == 27 or c == 10:  # Break if user enters 'Esc'.
                 break
 
     def process_image(self, frame):
@@ -136,23 +174,23 @@ class RatNavApp():
             self.process_for_delta(frame)
 
     def process_for_contours(self, curframe):
-        cv.Smooth(curframe, curframe)   # Remove false positives
+        cv.Smooth(curframe, curframe)  # Remove false positives
 
-        if not self.absdiff_frame:   # For the first time put values in difference, temp and moving_average
+        if not self.absdiff_frame:  # For the first time put values in difference, temp and moving_average
             self.absdiff_frame = cv.CloneImage(curframe)
             self.previous_frame = cv.CloneImage(curframe)
-            cv.Convert(curframe, self.average_frame)   # Should convert because after runningavg take 32F pictures
+            cv.Convert(curframe, self.average_frame)  # Should convert because after runningavg take 32F pictures
         else:
-            cv.RunningAvg(curframe, self.average_frame, 0.05)   # Compute the average
+            cv.RunningAvg(curframe, self.average_frame, 0.05)  # Compute the average
 
-        cv.Convert(self.average_frame, self.previous_frame)   # Convert back to 8U frame
+        cv.Convert(self.average_frame, self.previous_frame)  # Convert back to 8U frame
 
         cv.AbsDiff(curframe, self.previous_frame, self.absdiff_frame)  # moving_average - curframe
 
-        cv.CvtColor(self.absdiff_frame, self.gray_frame, cv.CV_RGB2GRAY)   # Convert to gray otherwise can't do threshold
+        cv.CvtColor(self.absdiff_frame, self.gray_frame, cv.CV_RGB2GRAY)  # Convert to gray otherwise can't do threshold
         cv.Threshold(self.gray_frame, self.gray_frame, 50, 255, cv.CV_THRESH_BINARY)
 
-        cv.Dilate(self.gray_frame, self.gray_frame, None, 15)   # to get object blobs
+        cv.Dilate(self.gray_frame, self.gray_frame, None, 15)  # to get object blobs
         cv.Erode(self.gray_frame, self.gray_frame, None, 10)
 
     def process_for_delta(self, frame):
@@ -162,7 +200,7 @@ class RatNavApp():
         cv.AbsDiff(self.frame1gray, self.frame2gray, self.res)
 
         #Remove the noise and do the threshold
-        cv.Smooth(self.res, self.res, cv.CV_BLUR, 5,5)
+        cv.Smooth(self.res, self.res, cv.CV_BLUR, 5, 5)
         cv.MorphologyEx(self.res, self.res, None, None, cv.CV_MOP_OPEN)
         cv.MorphologyEx(self.res, self.res, None, None, cv.CV_MOP_CLOSE)
         cv.Threshold(self.res, self.res, 10, 255, cv.CV_THRESH_BINARY_INV)
@@ -183,7 +221,7 @@ class RatNavApp():
             x, y, w, h = rect
             if (cx > x) and (cx < x + w):
                 if (cy > y) and (cy < y + h):
-                    self.alert()
+                    result = True
 
         return result
 
@@ -200,41 +238,46 @@ class RatNavApp():
             storage = cv.CreateMemStorage(0)
             contours = cv.FindContours(self.gray_frame, storage, cv.CV_RETR_EXTERNAL, cv.CV_CHAIN_APPROX_SIMPLE)
 
-            self.currentcontours = contours   # Save contours
+            self.currentcontours = contours  # Save contours
 
-            while contours:   # For all contours compute the area
+            while contours:  # For all contours compute the area
                 self.currentsurface += cv.ContourArea(contours)
                 contours = contours.h_next()
 
-
-            avg = (self.currentsurface * 100) / self.surface   # Calculate the average of contour area on the total size
-            self.currentsurface = 0   # Put back the current surface to 0
+            avg = (self.currentsurface * 100) / self.surface  # Calculate the average of contour area on the total size
+            self.currentsurface = 0  # Put back the current surface to 0
 
             if avg > self.threshold:
                 result = True
-            self.find_movement_in_rect(self.currentcontours, self.inner)
         else:
-            nb = 0   # Will hold the number of black pixels
+            nb = 0  # Will hold the number of black pixels
 
-            for x in range(self.height):   # Iterate the hole image
+            for x in range(self.height):  # Iterate the hole image
                 for y in range(self.width):
-                    if self.res[x, y] == 0.0:   # If the pixel is black keep it
+                    if self.res[x, y] == 0.0:  # If the pixel is black keep it
                         nb += 1
-            avg = (nb * 100.0) / self.nb_pixels   # Calculate the average of black pixel in the image
+            avg = (nb * 100.0) / self.nb_pixels  # Calculate the average of black pixel in the image
 
-            if avg > self.threshold:   # If over the ceiling trigger the alarm
+            if avg > self.threshold:  # If over the ceiling trigger the alarm
                 result = True
 
         return result
 
-    def alert(self):
+    def alert(self, soundobject):
         """
         Should play the audio file upon traffic movement alert.
         """
 
-        log("Playing audio file now ;)")
+        if self.alert_time + 5 < time.time():
+            if self.do_audio:
+                log("Playing audio '%s'" % soundobject)
+                soundobject.play()
+
+            self.alert_time = time.time()
+        else:
+            log("Not alerting.")
 
 
 if __name__ == "__main__":
-    RatNav = RatNavApp()
+    RatNav = RatNavApp(show_windows=False)
     RatNav.run()
