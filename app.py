@@ -24,31 +24,10 @@ import pygame
 
 import cv2.cv as cv
 
-
-# This source derived from https://github.com/RobinDavid/Motion-detection-OpenCV.git
-
-# TODO:
-# * Open issue tracker and move todo items
-# * try to use both detection methods
-# * integrate accelerometer
-# * add configurable preprocessing
-# * add license plate detection tool
-
-# Done:
-# * add state information (so no spamming happens)
-# * detect own movement
-# * Correctly configure application logic
-# * Add README.rst
-# * Add gplv3
-# * mention original source
-# * add inner movement detection
-# * combine delta and contour detection methods in app
-# * scrap recorder
-# * cleanups
-
-MOVE = './audio/move.wav'
-MOVING = './audio/moving.wav'
-STANDING = './audio/standing.wav'
+# Audio files
+MOVE = './audio/move.wav'  # A call to drive
+MOVING = './audio/moving.wav'  # When we're really driving again
+STANDING = './audio/standing.wav'  # When we had to stop (this one might annoy)
 
 
 def log(*what):
@@ -62,14 +41,35 @@ def log(*what):
 
 
 class RatNavApp():
-    """The RatNav Application object"""
+    """
+    The RatNav Application object
 
-    def onChange(self, val):
+    Just instantiate and run, e.g. like this:
+    > RatNav = RatNavApp(do_audio=False, show_windows=False)
+    > RatNav.run()
+
+    This would give you a ratnav without display and audio output.
+    Which is still useful for debugging purposes, sometimes.
+
+    RatNav will observe your first installed camera for movement
+    changes. If it detects that the camera is standing still (no
+    detectable movement happens), it switches into waiting mode
+    and observes only the center of your viewport.
+    If it detects a movement here while waiting, it will alert
+    you to this change.
+    Once it detects that you're driving again, it will play a
+    cheering alert and wait until movement stops, which will
+    be alerted, too.
+    """
+
+    def on_threshold_change(self, val):
         """Called when threshold slider is changed"""
 
         self.threshold = val
 
     def __init__(self, threshold=25, show_windows=True, do_audio=True):
+        """Set up cv buffers, audiofiles and states"""
+
         self.font = None
         self.mode = 'contours'
         self.show = show_windows  # Either or not show the 2 windows
@@ -121,7 +121,7 @@ class RatNavApp():
 
         if show_windows:
             cv.NamedWindow("Image")
-            cv.CreateTrackbar("Detection treshold: ", "Image", self.threshold, 100, self.onChange)
+            cv.CreateTrackbar("Detection treshold: ", "Image", self.threshold, 100, self.on_threshold_change)
 
     def run(self):
         """The actual main loop.
@@ -130,7 +130,9 @@ class RatNavApp():
         * Checks for movement
 
         """
+
         started = time.time()
+
         while True:
 
             currentframe = cv.QueryFrame(self.capture)
@@ -138,23 +140,25 @@ class RatNavApp():
 
             self.process_image(currentframe)  # Process the image
 
-            if self.somethingHasMoved():
-                if self.standing:
-                    log("We're moving.")
+            if self.has_movement():
+                if self.standing:  # we _we're_ standing
+                    log("We detected a first movement.")
                     self.standing = False
-                    self.move_time = instant  # Update the trigger_time
-                if not self.moving and instant > self.move_time + 3:
+                    self.move_time = instant
+                if not self.moving and instant > self.move_time + 3:  # once we're sure, alert
+                    log("We are moving.")
                     self.alert(self.s_moving)
                     self.moving = True
 
                     #if instant > started + 10:   # Wait 5 second after the webcam start for luminosity adjusting etc..
             else:
-                if self.moving:
-                    log("We're standing.")
+                if self.moving:  # seems like we're standing again
+                    log("We stand still.")
                     self.alert(self.s_standing)
-                    self.moving = False
+                    self.moving = False  # because we didn't see movement for at least a frame
                 self.standing = True
-                if self.find_movement_in_rect(self.currentcontours, self.inner):
+                if self.has_movement_in_rect(self.currentcontours, self.inner):
+                    log("We should move.")
                     self.alert(self.s_move)
 
             if self.mode == 'contours':
@@ -168,12 +172,16 @@ class RatNavApp():
                 break
 
     def process_image(self, frame):
+        """Decides which processing to use. No, not exactly a factory."""
+
         if self.mode == 'contours':
             self.process_for_contours(frame)
         else:
-            self.process_for_delta(frame)
+            self.process_for_threshold(frame)
 
     def process_for_contours(self, curframe):
+        """Do cv contour processing."""
+
         cv.Smooth(curframe, curframe)  # Remove false positives
 
         if not self.absdiff_frame:  # For the first time put values in difference, temp and moving_average
@@ -193,7 +201,9 @@ class RatNavApp():
         cv.Dilate(self.gray_frame, self.gray_frame, None, 15)  # to get object blobs
         cv.Erode(self.gray_frame, self.gray_frame, None, 10)
 
-    def process_for_delta(self, frame):
+    def process_for_threshold(self, frame):
+        """Do cv threshold processing."""
+
         cv.CvtColor(frame, self.frame2gray, cv.CV_RGB2GRAY)
 
         #Absdiff to get the difference between to the frames
@@ -205,10 +215,8 @@ class RatNavApp():
         cv.MorphologyEx(self.res, self.res, None, None, cv.CV_MOP_CLOSE)
         cv.Threshold(self.res, self.res, 10, 255, cv.CV_THRESH_BINARY_INV)
 
-    def find_movement_in_rect(self, contours, rect):
-        """
-        Checks for movement in the given rectangle.
-        """
+    def has_movement_in_rect(self, contours, rect):
+        """Checks for movement only in the given rectangle."""
 
         result = False
 
@@ -225,7 +233,7 @@ class RatNavApp():
 
         return result
 
-    def somethingHasMoved(self):
+    def has_movement(self):
         """
         Tests for movement in the image.
         Currently also tests for movement in the inner rectangle.

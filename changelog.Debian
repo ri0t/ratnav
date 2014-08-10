@@ -1,5 +1,6 @@
 python-ratnav (0.0.1) unstable; urgency=low
 
+    * moved todo items to issue tracker (https://github.com/ri0t/ratnav/issues)
     * state information (so no spamming happens)
     * detecting own movement
     * correctly (hopefully ;) configured application logic
