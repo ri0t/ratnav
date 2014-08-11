@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+
+__author__ = 'riot'
+
+from ratnav.app import RatNavApp
+
+if __name__ == "__main__":
+    RatNav = RatNavApp(show_windows=True)
+    RatNav.run()

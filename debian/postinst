@@ -1,0 +1,6 @@
+echo "Adding ratnav user"
+sudo useradd ratnav --system --no-create-home  --home-dir /nonexistent
+sudo mkdir /var/log/ratnav
+sudo touch /var/log/ratnav/service.log
+sudo chown -R ratnav /var/log/ratnav
+echo "done"

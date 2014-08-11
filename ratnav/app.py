@@ -75,8 +75,11 @@ class RatNavApp():
         self.show = show_windows  # Either or not show the 2 windows
         self.frame = None
 
+        log("Trying to open camera")
         self.capture = cv.CaptureFromCAM(0)
-        self.frame = cv.QueryFrame(self.capture)  # Take a frame to init recorder
+        log("Camera opened")
+        self.frame = cv.QueryFrame(self.capture)  # Take a frame to init buffer sizes
+        log("First frame taken: ", type(self.frame), self.frame)
 
         self.gray_frame = cv.CreateImage(cv.GetSize(self.frame), cv.IPL_DEPTH_8U, 1)
         self.average_frame = cv.CreateImage(cv.GetSize(self.frame), cv.IPL_DEPTH_32F, 3)
@@ -112,12 +115,14 @@ class RatNavApp():
 
         self.do_audio = do_audio
 
+        self.sounds = {}
+
         if do_audio:
             pygame.init()
 
-            self.s_moving = pygame.mixer.Sound(MOVING)
-            self.s_move = pygame.mixer.Sound(MOVE)
-            self.s_standing = pygame.mixer.Sound(STANDING)
+            self.sounds[MOVING] = pygame.mixer.Sound(MOVING)
+            self.sounds[MOVE] = pygame.mixer.Sound(MOVE)
+            self.sounds[STANDING] = pygame.mixer.Sound(STANDING)
 
         if show_windows:
             cv.NamedWindow("Image")
@@ -147,19 +152,19 @@ class RatNavApp():
                     self.move_time = instant
                 if not self.moving and instant > self.move_time + 3:  # once we're sure, alert
                     log("We are moving.")
-                    self.alert(self.s_moving)
+                    self.alert(MOVING)
                     self.moving = True
 
                     #if instant > started + 10:   # Wait 5 second after the webcam start for luminosity adjusting etc..
             else:
                 if self.moving:  # seems like we're standing again
                     log("We stand still.")
-                    self.alert(self.s_standing)
+                    self.alert(STANDING)
                     self.moving = False  # because we didn't see movement for at least a frame
                 self.standing = True
                 if self.has_movement_in_rect(self.currentcontours, self.inner):
                     log("We should move.")
-                    self.alert(self.s_move)
+                    self.alert(MOVE)
 
             if self.mode == 'contours':
                 cv.DrawContours(currentframe, self.currentcontours, (0, 0, 255), (0, 255, 0), 1, 2, cv.CV_FILLED)
@@ -271,21 +276,16 @@ class RatNavApp():
 
         return result
 
-    def alert(self, soundobject):
+    def alert(self, soundname):
         """
         Should play the audio file upon traffic movement alert.
         """
 
         if self.alert_time + 5 < time.time():
             if self.do_audio:
-                log("Playing audio '%s'" % soundobject)
-                soundobject.play()
+                log("Playing audio '%s'" % soundname)
+                self.sounds[soundname].play()
 
             self.alert_time = time.time()
         else:
             log("Not alerting.")
-
-
-if __name__ == "__main__":
-    RatNav = RatNavApp(show_windows=False)
-    RatNav.run()

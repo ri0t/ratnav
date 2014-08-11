@@ -1,0 +1,14 @@
+Source: python-ratnav
+Maintainer: Heiko 'riot' Weinen <riot@hackerfleet.org>
+Section: python
+Priority: optional
+Build-Depends: python (>= 2.7.5) | python-minimal (>= 2.7.5), debhelper (>= 7), python-opencv (>= 2.4.9), python-numpy (>= 1.8.1)
+Standards-Version: 3.9.5
+
+Package: python-ratnav
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}
+Description: Python RatNav Traffic Optimizer
+ .
+ TODO
+ .
