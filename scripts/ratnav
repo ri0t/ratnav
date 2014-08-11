@@ -4,7 +4,13 @@
 __author__ = 'riot'
 
 from ratnav.app import RatNavApp
+import argparse
 
 if __name__ == "__main__":
-    RatNav = RatNavApp(show_windows=True)
+    parser = argparse.ArgumentParser(description='RatNav traffic optimiziation tool')
+    parser.add_argument('-s', '--show', help='Opens windows to let you see what it sees', action='store_true')
+    parser.add_argument('-a', '--audio', help='Play audio files when alerting', action='store_true')
+    args = vars(parser.parse_args())
+
+    RatNav = RatNavApp(show_windows=args['show'], do_audio=args['audio'])
     RatNav.run()
