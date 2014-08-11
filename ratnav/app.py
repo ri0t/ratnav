@@ -23,6 +23,16 @@ import time
 import pygame
 
 import cv2.cv as cv
+import numpy as np
+
+try:
+    import picamera
+    import io
+
+    PICAM = True
+except ImportError:
+    PICAM = False
+
 
 # Audio files
 MOVE = './audio/move.wav'  # A call to drive
@@ -67,6 +77,18 @@ class RatNavApp():
 
         self.threshold = val
 
+    def capture_frame(self):
+
+        if PICAM:
+            with picamera.PiCamera() as camera:
+                camera.capture('snapshot.jpg')
+                image = cv.LoadImage('snapshot.jpg')
+        else:
+            image = cv.QueryFrame(self.capture)  # Take a frame to init recorder
+
+        return image
+
+
     def __init__(self, threshold=25, show_windows=True, do_audio=True):
         """Set up cv buffers, audiofiles and states"""
 
@@ -75,10 +97,16 @@ class RatNavApp():
         self.show = show_windows  # Either or not show the 2 windows
         self.frame = None
 
-        log("Trying to open camera")
-        self.capture = cv.CaptureFromCAM(0)
+        if PICAM:
+            log("Using RPi camera")
+            #self.capture = picamera.PiCamera()
+            #self.capture.start_preview()
+            #self.stream = io.BytesIO()
+        else:
+            log("Using normal cv camera")
+            self.capture = cv.CaptureFromCAM(0)
         log("Camera opened")
-        self.frame = cv.QueryFrame(self.capture)  # Take a frame to init buffer sizes
+        self.frame = self.capture_frame()  # Take a frame to init buffer sizes
         log("First frame taken: ", type(self.frame), self.frame)
 
         self.gray_frame = cv.CreateImage(cv.GetSize(self.frame), cv.IPL_DEPTH_8U, 1)
@@ -140,7 +168,7 @@ class RatNavApp():
 
         while True:
 
-            currentframe = cv.QueryFrame(self.capture)
+            currentframe = self.capture_frame()
             instant = time.time()  # Get timestamp o the frame
 
             self.process_image(currentframe)  # Process the image
